@@ -1,5 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
-
 export interface Expense {
   id?: string;
   userId: string;
@@ -10,8 +8,8 @@ export interface Expense {
   date: string;
   paymentMethod?: string;
   tags?: string[];
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ExpenseInput {
@@ -40,8 +38,8 @@ export interface RecurringExpense {
   description?: string;
   paymentMethod?: string;
   tags?: string[];
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RecurringExpenseInput {
@@ -61,7 +59,7 @@ export interface UserSettings {
   userId: string;
   monthlyBudget: number;
   defaultCurrency: string;
-  updatedAt: Timestamp;
+  updatedAt: string;
 }
 
 export const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'JPY', 'CAD', 'AUD'] as const;

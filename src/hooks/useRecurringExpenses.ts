@@ -1,92 +1,60 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
 import { RecurringExpense, RecurringExpenseInput } from '../types';
-import { handleFirestoreError, OperationType } from '../lib/firebaseError';
+import { v4 as uuidv4 } from 'uuid';
 
 export function useRecurringExpenses() {
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      setRecurringExpenses([]);
+    try {
+      const stored = localStorage.getItem('sentinel_recurring');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setRecurringExpenses(parsed);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setLoading(false);
-      return;
     }
+  }, []);
 
-    const q = query(
-      collection(db, 'recurringExpenses'),
-      where('userId', '==', auth.currentUser.uid)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: RecurringExpense[] = [];
-      snapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as RecurringExpense);
-      });
-      // Sort by start date down
-      data.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-      
-      setRecurringExpenses(data);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'recurringExpenses');
-    });
-
-    return () => unsubscribe();
-  }, [auth.currentUser?.uid]);
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem('sentinel_recurring', JSON.stringify(recurringExpenses));
+    }
+  }, [recurringExpenses, loading]);
 
   const addRecurringExpense = async (expense: RecurringExpenseInput) => {
-    if (!auth.currentUser) throw new Error("Not authenticated");
-    try {
-      const data = {
-        ...expense,
-        userId: auth.currentUser.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } as Record<string, any>;
-
-      Object.keys(data).forEach(key => {
-        if (data[key] === undefined) {
-          delete data[key];
-        }
-      });
-
-      await addDoc(collection(db, 'recurringExpenses'), data);
-    } catch (error) {
-       handleFirestoreError(error, OperationType.CREATE, 'recurringExpenses');
-    }
+    const newExpense: RecurringExpense = {
+      ...expense,
+      id: uuidv4(),
+      userId: 'local-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setRecurringExpenses(prev => {
+      const next = [newExpense, ...prev];
+      next.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+      return next;
+    });
   };
 
   const updateRecurringExpense = async (id: string, expense: Partial<RecurringExpense>) => {
-    if (!auth.currentUser) throw new Error("Not authenticated");
-    try {
-      const docRef = doc(db, 'recurringExpenses', id);
-      const data = {
-        ...expense,
-        updatedAt: serverTimestamp(),
-      } as Record<string, any>;
-
-      Object.keys(data).forEach(key => {
-        if (data[key] === undefined) {
-          delete data[key];
-        }
-      });
-
-      await updateDoc(docRef, data);
-    } catch (error) {
-       handleFirestoreError(error, OperationType.UPDATE, `recurringExpenses/${id}`);
-    }
+    setRecurringExpenses(prev => {
+      const next = prev.map(exp => 
+        exp.id === id 
+          ? { ...exp, ...expense, updatedAt: new Date().toISOString() } 
+          : exp
+      );
+      next.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+      return next;
+    });
   };
 
   const deleteRecurringExpense = async (id: string) => {
-    if (!auth.currentUser) throw new Error("Not authenticated");
-    try {
-      await deleteDoc(doc(db, 'recurringExpenses', id));
-    } catch (error) {
-       handleFirestoreError(error, OperationType.DELETE, `recurringExpenses/${id}`);
-    }
+    setRecurringExpenses(prev => prev.filter(exp => exp.id !== id));
   };
 
   return { recurringExpenses, loading, addRecurringExpense, updateRecurringExpense, deleteRecurringExpense };
